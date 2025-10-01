@@ -1,0 +1,276 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// USUARIOS
+// ============================================
+
+model User {
+  id           String    @id @default(uuid())
+  username     String    @unique
+  email        String    @unique
+  passwordHash String
+  level        Int       @default(1)
+  xp           Int       @default(0)
+  
+  // Relación con Academia
+  academyId    String?
+  academy      Academy?  @relation(fields: [academyId], references: [id])
+  
+  // Timestamps
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  lastActiveAt DateTime  @default(now())
+  
+  // Relaciones
+  votes             Vote[]
+  gameParticipation GameSession_User[] @relation("UserGameSessions")
+  
+  @@index([academyId])
+  @@index([email])
+}
+
+// ============================================
+// ACADEMIAS
+// ============================================
+
+model Academy {
+  id            String   @id @default(uuid())
+  name          String   @unique
+  color         String
+  philosophy    String
+  bonusType     String
+  bonusValue    Float
+  
+  // Recursos
+  prestigePoints Int     @default(0)
+  crystals       Int     @default(1000)
+  essences       Int     @default(500)
+  mentalEnergy   Int     @default(5000)
+  
+  // Estado del Núcleo
+  coreState      String  @default("WEAK") // AGONIZING, WEAK, STABLE, RADIANT, TRANSCENDENT
+  
+  // Timestamps
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  
+  // Relaciones
+  members        User[]
+  votesReceived  Vote[]
+  technologies   AcademyTechnology[]
+  warsAsAttacker War[]    @relation("AttackerWars")
+  warsAsDefender War[]    @relation("DefenderWars")
+  
+  @@index([name])
+}
+
+// ============================================
+// TECNOLOGÍAS (INVESTIGACIÓN)
+// ============================================
+
+model Technology {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String
+  tier        Int      // 1, 2, 3, 4
+  cost        Int      // Costo en Cristales
+  effectType  String   // BONUS_XP, REDUCE_TIME, etc.
+  effectValue Float
+  
+  // Prerrequisitos
+  requiresIds String[] // IDs de tecnologías que se necesitan
+  
+  createdAt   DateTime @default(now())
+  
+  // Relaciones
+  academies   AcademyTechnology[]
+}
+
+model AcademyTechnology {
+  id           String   @id @default(uuid())
+  
+  academyId    String
+  academy      Academy  @relation(fields: [academyId], references: [id])
+  
+  technologyId String
+  technology   Technology @relation(fields: [technologyId], references: [id])
+  
+  researchedAt DateTime @default(now())
+  isActive     Boolean  @default(true)
+  
+  @@unique([academyId, technologyId])
+  @@index([academyId])
+}
+
+// ============================================
+// JUEGOS
+// ============================================
+
+model GameSession {
+  id           String    @id @default(uuid())
+  gameType     String    // TRIVIA, HANGMAN, MEMORY, etc.
+  status       String    @default("WAITING") // WAITING, PLAYING, FINISHED
+  
+  // Jugadores (JSON con array de userIds)
+  playersData  Json
+  
+  // Resultado
+  winnerId     String?
+  duration     Int?      // Duración en segundos
+  
+  // Recursos ganados
+  resourcesWon Json?
+  
+  createdAt    DateTime  @default(now())
+  startedAt    DateTime?
+  completedAt  DateTime?
+  
+  // Relaciones
+  participants GameSession_User[]
+  
+  @@index([gameType])
+  @@index([status])
+}
+
+model GameSession_User {
+  id            String      @id @default(uuid())
+  
+  userId        String
+  user          User        @relation(fields: [userId], references: [id], name: "UserGameSessions")
+  
+  gameSessionId String
+  gameSession   GameSession @relation(fields: [gameSessionId], references: [id])
+  
+  score         Int         @default(0)
+  isWinner      Boolean     @default(false)
+  
+  @@unique([userId, gameSessionId])
+  @@index([userId])
+  @@index([gameSessionId])
+}
+
+// ============================================
+// VOTACIONES
+// ============================================
+
+model Proposal {
+  id          String   @id @default(uuid())
+  title       String
+  description String
+  type        String   // ATTACK, RESEARCH, DEFENSE, CUSTOM
+  
+  academyId   String
+  
+  // Opciones de votación (JSON array)
+  options     Json
+  
+  // Estado
+  status      String   @default("OPEN") // OPEN, CLOSED, EXECUTED
+  
+  // Timestamps
+  createdAt   DateTime @default(now())
+  opensAt     DateTime
+  closesAt    DateTime
+  executedAt  DateTime?
+  
+  // Relaciones
+  votes       Vote[]
+  
+  @@index([academyId])
+  @@index([status])
+}
+
+model Vote {
+  id           String   @id @default(uuid())
+  
+  proposalId   String
+  proposal     Proposal @relation(fields: [proposalId], references: [id])
+  
+  userId       String
+  user         User     @relation(fields: [userId], references: [id])
+  
+  academyId    String
+  academy      Academy  @relation(fields: [academyId], references: [id])
+  
+  // Cuántos votos puso (puede poner múltiples)
+  votesCount   Int      @default(1)
+  
+  // Energía gastada (20 energía por voto)
+  energySpent  Int
+  
+  // En qué opción votó
+  optionIndex  Int
+  
+  createdAt    DateTime @default(now())
+  
+  @@unique([proposalId, userId])
+  @@index([proposalId])
+  @@index([userId])
+}
+
+// ============================================
+// GUERRAS
+// ============================================
+
+model War {
+  id                String   @id @default(uuid())
+  
+  attackerAcademyId String
+  attackerAcademy   Academy  @relation("AttackerWars", fields: [attackerAcademyId], references: [id])
+  
+  defenderAcademyId String
+  defenderAcademy   Academy  @relation("DefenderWars", fields: [defenderAcademyId], references: [id])
+  
+  status            String   @default("PREPARATION") // PREPARATION, ACTIVE, FINISHED
+  
+  startDate         DateTime
+  endDate           DateTime
+  
+  // Estadísticas
+  attackerWins      Int      @default(0)
+  defenderWins      Int      @default(0)
+  
+  // Recursos robados (JSON)
+  resourcesStolen   Json?
+  
+  createdAt         DateTime @default(now())
+  
+  @@index([attackerAcademyId])
+  @@index([defenderAcademyId])
+  @@index([status])
+}
+
+// ============================================
+// MISIONES
+// ============================================
+
+model Mission {
+  id          String   @id @default(uuid())
+  type        String   // DAILY, WEEKLY, SPECIAL
+  title       String
+  description String
+  
+  // Objetivos (JSON)
+  objectives  Json
+  
+  // Recompensas (JSON)
+  rewards     Json
+  
+  expiryDate  DateTime
+  isActive    Boolean  @default(true)
+  
+  createdAt   DateTime @default(now())
+  
+  @@index([type])
+  @@index([isActive])
+}
