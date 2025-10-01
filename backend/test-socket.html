@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Socket.io</title>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+</head>
+<body>
+    <h1>Test Socket.io - Academias Rivales</h1>
+    <div id="status"></div>
+    <button onclick="connectMain()">Conectar Principal</button>
+    <button onclick="connectGame()">Conectar /game</button>
+    <button onclick="connectAcademy()">Conectar /academy</button>
+    <button onclick="connectChat()">Conectar /chat</button>
+    <button onclick="testJoinQueue()">Test: Join Queue</button>
+    <button onclick="testSendMessage()">Test: Send Message</button>
+    <div id="logs" style="margin-top: 20px; border: 1px solid #ccc; padding: 10px; max-height: 400px; overflow-y: scroll;"></div>
+
+    <script>
+        const TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI4MWJmYWYyOC00ZWFiLTRjYWItYTU2YS0wNTBlMjA4ZTc4ZTUiLCJ1c2VybmFtZSI6InRlc3R1c2VyIiwiYWNhZGVteUlkIjpudWxsLCJpYXQiOjE3NTkyOTExMDIsImV4cCI6MTc1OTg5NTkwMn0.PvY6V779_YfdaUW8u1HHf6tYDS3XyE8rcyB3fhB0rUw';
+
+        let mainSocket, gameSocket, academySocket, chatSocket;
+
+        function log(message) {
+            const logs = document.getElementById('logs');
+            const time = new Date().toLocaleTimeString();
+            logs.innerHTML += `[${time}] ${message}<br>`;
+            logs.scrollTop = logs.scrollHeight;
+        }
+
+        function connectMain() {
+            mainSocket = io('http://localhost:5000', {
+                auth: { token: TOKEN }
+            });
+
+            mainSocket.on('connect', () => {
+                log('✅ Conectado al namespace principal');
+                document.getElementById('status').textContent = 'Conectado a /';
+            });
+
+            mainSocket.on('connect_error', (error) => {
+                log('❌ Error en conexión principal: ' + error.message);
+            });
+
+            mainSocket.on('disconnect', () => {
+                log('🔴 Desconectado del namespace principal');
+            });
+        }
+
+        function connectGame() {
+            gameSocket = io('http://localhost:5000/game', {
+                auth: { token: TOKEN }
+            });
+
+            gameSocket.on('connect', () => {
+                log('🎮 Conectado a /game');
+            });
+
+            gameSocket.on('game:queue-joined', (data) => {
+                log('📩 Queue joined: ' + JSON.stringify(data));
+            });
+
+            gameSocket.on('connect_error', (error) => {
+                log('❌ Error en /game: ' + error.message);
+            });
+        }
+
+        function connectAcademy() {
+            academySocket = io('http://localhost:5000/academy', {
+                auth: { token: TOKEN }
+            });
+
+            academySocket.on('connect', () => {
+                log('🏰 Conectado a /academy');
+            });
+
+            academySocket.on('academy:resources-update', (data) => {
+                log('💎 Recursos: ' + JSON.stringify(data));
+            });
+
+            academySocket.on('connect_error', (error) => {
+                log('❌ Error en /academy: ' + error.message);
+            });
+        }
+
+        function connectChat() {
+            chatSocket = io('http://localhost:5000/chat', {
+                auth: { token: TOKEN }
+            });
+
+            chatSocket.on('connect', () => {
+                log('💬 Conectado a /chat');
+            });
+
+            chatSocket.on('chat:new-message', (data) => {
+                log('💬 Mensaje: ' + data.username + ': ' + data.message);
+            });
+
+            chatSocket.on('connect_error', (error) => {
+                log('❌ Error en /chat: ' + error.message);
+            });
+        }
+
+        function testJoinQueue() {
+            if (!gameSocket) {
+                log('⚠️ Primero conecta a /game');
+                return;
+            }
+            gameSocket.emit('game:join-queue', { gameType: 'trivia' });
+            log('📤 Enviado: join-queue (trivia)');
+        }
+
+        function testSendMessage() {
+            if (!chatSocket) {
+                log('⚠️ Primero conecta a /chat');
+                return;
+            }
+            chatSocket.emit('chat:send-message', { message: 'Hola desde el test!' });
+            log('📤 Enviado mensaje de chat');
+        }
+    </script>
+</body>
+</html>
